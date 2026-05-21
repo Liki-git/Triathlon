@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHG Funding - Secure Dual Portal</title>
+<style>
+  :root {
+    --primary: #4834d4;
+    --officer-theme: #2d3436;
+    --success: #27ae60;
+    --danger: #eb4d4b;
+    --glass: rgba(255, 255, 255, 0.95);
+  }
+
+  body { font-family: 'Segoe UI', sans-serif; background: #dfe6e9; margin: 0; padding: 20px; }
+  .container { max-width: 1000px; margin: auto; }
+
+  header { 
+    background: var(--primary); color: white; padding: 30px; 
+    border-radius: 15px; text-align: center; margin-bottom: 25px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1); transition: 0.5s;
+  }
+
+  .card { 
+    background: var(--glass); padding: 25px; border-radius: 15px; 
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1); margin-bottom: 25px;
+  }
+
+  h2 { margin-top: 0; color: var(--primary); border-bottom: 2px solid #eee; padding-bottom: 10px; }
+  
+  .input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
+  input { padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 1rem; }
+  .full-width { grid-column: span 2; }
+  
+  button { 
+    padding: 12px 20px; border: none; border-radius: 8px; font-weight: bold; 
+    cursor: pointer; transition: 0.3s;
+  }
+  .btn-member { background: var(--primary); color: white; width: 100%; }
+  .btn-officer { background: var(--officer-theme); color: white; }
+  .btn-sign { background: var(--success); color: white; font-size: 0.8em; }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; border-radius: 10px; overflow: hidden; }
+  th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
+  th { background: #f1f2f6; }
+
+  .status-badge { padding: 5px 12px; border-radius: 20px; font-size: 0.85em; font-weight: bold; border: 1px solid; }
+  .status-approved { background: #dff9fb; color: #009432; border-color: #009432; }
+  .status-pending { background: #fff5e6; color: #e67e22; border-color: #e67e22; }
+
+  .hidden { display: none !important; }
+  .portal-link { text-align: center; margin-top: 20px; cursor: pointer; color: #666; font-size: 0.9em; text-decoration: underline; }
+</style>
+</head>
+<body id="pageBody">
+
+<div class="container">
+  <header id="mainHeader">
+    <h1 id="portalTitle">🌾 SHG Member Portal</h1>
+    <p id="portalSub">Private Application & Status Tracking</p>
+  </header>
+
+  <div id="memberAuth" class="card">
+    <div id="m-login">
+        <h2>Member Login</h2>
+        <div class="input-grid">
+            <input type="text" id="mIdInput" placeholder="Enter Member ID" class="full-width">
+            <button onclick="loginMember()" class="btn-member full-width">Access My Dashboard</button>
+            <p onclick="toggleMView(false)" class="portal-link full-width">Need to Register? Click here</p>
+        </div>
+    </div>
+    <div id="m-register" class="hidden">
+        <h2>New Registration</h2>
+        <div class="input-grid">
+            <input type="text" id="regName" placeholder="Full Name">
+            <input type="tel" id="regPhone" placeholder="Phone Number (10 Digits)">
+            <input type="email" id="regEmail" placeholder="Email (must be @gmail.com)" class="full-width">
+            <button onclick="registerMember()" class="btn-member full-width">Generate My Member ID</button>
+            <p onclick="toggleMView(true)" class="portal-link full-width">Back to Login</p>
+        </div>
+    </div>
+  </div>
+
+  <div id="officerAuth" class="card hidden">
+    <h2>🛡️ Officer Verification Access</h2>
+    <div class="input-grid">
+        <input type="password" id="officerKey" placeholder="Enter Master Key" class="full-width">
+        <button onclick="loginOfficer()" class="btn-officer full-width">Verify & Open Vault</button>
+        <p onclick="exitOfficerMode()" class="portal-link full-width">Back to Member Portal</p>
+    </div>
+  </div>
+
+  <div id="memberDash" class="hidden">
+    <div class="card">
+        <h2>🆕 Funding Application</h2>
+        <div class="input-grid">
+            <input type="text" id="fPurpose" placeholder="Purpose (e.g. Poultry Farm)">
+            <input type="number" id="fAmount" placeholder="Amount (₹)">
+            <button onclick="submitApplication()" class="btn-member full-width">Submit Request</button>
+        </div>
+    </div>
+    <div class="card">
+        <h2>📊 My Requests Status</h2>
+        <table id="mTable">
+            <thead><tr><th>Purpose</th><th>Amount</th><th>Status</th><th>Signs</th></tr></thead>
+            <tbody id="mBody"></tbody>
+        </table>
+    </div>
+    <button onclick="logout()" style="width:100%; background:#636e72; color:white;">Logout Securely</button>
+  </div>
+
+  <div id="officerDash" class="hidden">
+    <div class="card">
+        <h2>✅ Applications Pending Verification</h2>
+        <table id="oTable">
+            <thead><tr><th>Member</th><th>Purpose</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="oBody"></tbody>
+        </table>
+    </div>
+    <button onclick="logout()" style="width:100%; background:var(--officer-theme); color:white;">Close Vault</button>
+  </div>
+
+  <p id="footerLink" class="portal-link" onclick="enterOfficerMode()">Switch to Officer Portal</p>
+</div>
+
+<script>
+const MASTER_KEY = "SHG-2026-OFFICER";
+let loggedInUser = sessionStorage.getItem('currentUser');
+
+// Auto-redirect if session exists
+window.onload = () => { if(loggedInUser) loginMember(loggedInUser); };
+
+function toggleMView(showLogin) {
+    document.getElementById('m-login').classList.toggle('hidden', !showLogin);
+    document.getElementById('m-register').classList.toggle('hidden', showLogin);
+}
+
+function enterOfficerMode() {
+    document.getElementById('memberAuth').classList.add('hidden');
+    document.getElementById('officerAuth').classList.remove('hidden');
+    document.getElementById('footerLink').classList.add('hidden');
+    document.getElementById('mainHeader').style.background = "var(--officer-theme)";
+    document.getElementById('portalTitle').innerText = "🛡️ Officer Approval Vault";
+}
+
+function logout() {
+    sessionStorage.clear();
+    location.reload();
+}
+
+// --- LOGIC REFACTORED FOR TRUST ---
+
+function registerMember() {
+    const name = document.getElementById('regName').value.trim();
+    const phone = document.getElementById('regPhone').value.trim();
+    const email = document.getElementById('regEmail').value.trim();
+    
+    if(name === "" || phone.length !== 10 || !email.endsWith("@gmail.com")) {
+        return alert("Validation Error: Check your Name, 10-digit Phone, and @gmail.com address.");
+    }
+
+    const id = name.substring(0,2).toUpperCase() + "-" + Math.floor(1000 + Math.random() * 9000);
+    let members = JSON.parse(localStorage.getItem('shg_users') || "{}");
+    members[id] = { name, phone, email };
+    localStorage.setItem('shg_users', JSON.stringify(members));
+    
+    alert(`Success! Your ID is: ${id}. Please log in.`);
+    toggleMView(true);
+}
+
+function loginMember(autoId = null) {
+    const id = autoId || document.getElementById('mIdInput').value.trim().toUpperCase();
+    const members = JSON.parse(localStorage.getItem('shg_users') || "{}");
+    
+    if(!members[id]) return alert("ID not recognized.");
+    
+    sessionStorage.setItem('currentUser', id);
+    loggedInUser = id;
+    document.getElementById('memberAuth').classList.add('hidden');
+    document.getElementById('memberDash').classList.remove('hidden');
+    document.getElementById('portalSub').innerText = `Welcome, ${members[id].name} (${id})`;
+    renderMemberView();
+}
+
+function submitApplication() {
+    const purpose = document.getElementById('fPurpose').value.trim();
+    const amt = document.getElementById('fAmount').value;
+    if(!purpose || !amt) return alert("Fill all fields.");
+
+    let apps = JSON.parse(localStorage.getItem('shg_apps') || "[]");
+    apps.push({
+        id: Date.now(),
+        owner: loggedInUser,
+        purpose,
+        amt,
+        signatures: [],
+        status: "Pending",
+        isLocked: false
+    });
+    localStorage.setItem('shg_apps', JSON.stringify(apps));
+    renderMemberView();
+}
+
+function loginOfficer() {
+    const key = document.getElementById('officerKey').value;
+    if(key !== MASTER_KEY) return alert("Unauthorized Access.");
+    
+    // Logic: Simulated 2FA to prevent simple key-leaks
+    const code = prompt("Security Check: Enter verification code sent to Officer Mobile (Simulated: 1234)");
+    if(code !== "1234") return alert("Verification Failed.");
+
+    document.getElementById('officerAuth').classList.add('hidden');
+    document.getElementById('officerDash').classList.remove('hidden');
+    renderOfficerView();
+}
+
+function signApplication(appId) {
+    const name = prompt("Enter Officer Signature Name:");
+    if(!name) return;
+
+    let apps = JSON.parse(localStorage.getItem('shg_apps'));
+    let app = apps.find(a => a.id === appId);
+
+    // Logic Rule: Prevent same officer from signing twice
+    if(app.signatures.some(s => s.name.toLowerCase() === name.toLowerCase())) {
+        return alert("Error: An officer cannot sign the same application twice!");
+    }
+
+    app.signatures.push({ name, date: new Date().toLocaleDateString() });
+
+    // Logic Rule: Two independent verifiers required
+    if(app.signatures.length >= 2) {
+        app.status = "Approved";
+        app.isLocked = true; // LOCK DECISION
+    }
+
+    localStorage.setItem('shg_apps', JSON.stringify(apps));
+    renderOfficerView();
+}
+
+function renderMemberView() {
+    const apps = JSON.parse(localStorage.getItem('shg_apps') || "[]");
+    const myApps = apps.filter(a => a.owner === loggedInUser);
+    document.getElementById('mBody').innerHTML = myApps.map(a => `
+        <tr>
+            <td>${a.purpose}</td>
+            <td>₹${a.amt}</td>
+            <td><span class="status-badge status-${a.status.toLowerCase()}">${a.status}</span></td>
+            <td>${a.signatures.length}/2 Signed</td>
+        </tr>
+    `).join('');
+}
+
+function renderOfficerView() {
+    const apps = JSON.parse(localStorage.getItem('shg_apps') || "[]");
+    document.getElementById('oBody').innerHTML = apps.map(a => `
+        <tr>
+            <td>${a.owner}</td>
+            <td>${a.purpose}</td>
+            <td>₹${a.amt}</td>
+            <td>${a.signatures.length}/2 Signs</td>
+            <td>
+                ${a.isLocked ? '🔒 Locked (Approved)' : `<button onclick="signApplication(${a.id})" class="btn-sign">Digital Sign</button>`}
+            </td>
+        </tr>
+    `).join('');
+}
+</script>
+</body>
+</html>
